@@ -1,0 +1,94 @@
+---
+title: "PML - Course Project"
+author: "Steven Sheridan"
+date: "April 27, 2019"
+output: html_document
+---
+
+#Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#Prepare data
+Load libraries
+```{r, echo=FALSE}
+library(caret)
+library(rattle)
+```
+Load training and test data
+```{r}
+Train<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+dim(Train)
+Test<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+dim(Test)
+```
+```{r}
+str(Test)
+```
+Remove columns with many missing values
+```{r}
+Remove <- which(colSums(is.na(Train) |Train=="")>0.9*dim(Train)[1]) 
+TrainClean<-Train[,-Remove]
+TrainClean<-TrainClean[,-c(1:7)]
+TestClean<-Test[,-Remove]
+TestClean<-TestClean[,-1]
+dim(TrainClean)
+dim(TestClean)
+```
+After cleaning, the training set has 53 variables.
+
+Partition the data
+```{r}
+set.seed(2319)
+DP <- createDataPartition(TrainClean$classe, p=0.75, list=FALSE)
+TrainP <- TrainClean[DP,]
+TestP <- TrainClean[-DP,]
+dim(TrainP)
+dim(TestP)
+```
+Three different methods for prediction are tested below. The cross-validation technique is being applied and five folds are being used.
+
+#Classification Tree
+```{r}
+trControl <- trainControl(method="cv", number=5)
+model_CT <- train(classe~., data=TrainP, method="rpart", trControl=trControl)
+fancyRpartPlot(model_CT$finalModel)
+```
+```{r}
+predCT <- predict(model_CT,newdata=TestP)
+CMCT <- confusionMatrix(TestP$classe,predCT)
+CMCT$table
+CMCT$overall[1]
+```
+This model has very low accuracy of just about 50%.
+
+#Gradient Boosting Method
+```{r}
+model_GBM <- train(classe~., data=TrainP, method="gbm", trControl=trControl, verbose=FALSE)
+print(model_GBM)
+plot(model_GBM)
+```
+```{r}
+predGBM<-predict(model_GBM,newdata=TestP)
+CMGBM<-confusionMatrix(TestP$classe,predGBM)
+CMGBM$table
+CMGBM$overall[1]
+```
+This model peformed much better than the classification tree, but there is still some room for improvement.
+
+#Random Forests Method
+```{r}
+model_RF<-train(classe~., data=TrainP, method="rf", trControl=trControl, verbose=FALSE)
+print(model_RF)
+plot(model_RF,main="Accuracy of Random forest model by number of predictors")
+```
+```{r}
+predRF<-predict(model_RF,newdata=TestP)
+CMRF<-confusionMatrix(TestP$classe,predRF)
+CMRF$table
+CMRF$overall[1]
+```
+
+#Summary
+The random forests model performs better (over 99% accuracy) than the other two methods and will be used for prediction.
